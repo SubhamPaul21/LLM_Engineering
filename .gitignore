@@ -175,3 +175,6 @@ cython_debug/
 
 # Gradio files
 .gradio
+
+# Replit
+.replit
