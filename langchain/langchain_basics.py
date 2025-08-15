@@ -1,55 +1,89 @@
 import os
-from pathlib import Path
 from dotenv import load_dotenv
-from langchain.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
+from pydantic import BaseModel, Field
 from langchain_groq import ChatGroq
-from groq import Groq
-from kokoro import KPipeline
-import soundfile as sf
-from huggingface_hub import login
-import numpy as np
+from langchain_core.prompts import ChatPromptTemplate
 
 load_dotenv()
 
-if not os.getenv("GROQ_API_KEY"):
-    os.environ["GROQ_API_KEY"] = input("Enter API key for Groq: ")
 
-if not os.getenv("HUGGINGFACE_HUB_TOKEN"):
-    token = input("Enter API key for Hugging Face Hub: ")
-    login(token)
-else:
-    login(os.getenv("HUGGINGFACE_HUB_TOKEN"))
+class Joke(BaseModel):
+    category: str = Field(description="The category of the joke")
+    joke: str = Field(description="The actual joke text")
 
-client = Groq()
 
-llm = ChatGroq(model="meta-llama/llama-4-scout-17b-16e-instruct", temperature=0.7)
-user_prompt = ChatPromptTemplate.from_template("Write a 4 line funnypoem about {topic}. Just output the poem in plain english without formatting and nothing else. You can add expressions for the reader to dictate the poem better.")
+def main():
+    if not os.getenv("GROQ_API_KEY"):
+        os.environ["GROQ_API_KEY"] = input("Enter API key for Groq: ")
 
-chain = user_prompt | llm | StrOutputParser()
-output = chain.invoke({"topic": "Dreams"})
+    llm = ChatGroq(
+        model="openai/gpt-oss-120b",
+        temperature=0.7,
+    )
 
-# response = client.audio.speech.create(
-#     model="playai-tts",
-#     voice="Aaliyah-PlayAI",
-#     response_format="wav",
-#     input=output,
-# )
-# response.write_to_file(speech_file_path)
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "Return a JSON object that matches the required schema for a Joke. "
+                "Write a short joke for the given topic.",
+            ),
+            ("human", "Topic: {topic}"),
+        ]
+    )
 
-# KOKORO TTS
+    # If the model supports structured outputs, this returns a Runnable that emits Joke objects
+    structured_llm = llm.with_structured_output(Joke)
 
-# Collect all audio chunks
-audio_segments = []
+    # Combine prompt with structured llm
+    chain = prompt | structured_llm
 
-pipeline = KPipeline(lang_code='a')
-generator = pipeline(output, voice='am_adam')
-for i, (gs, ps, audio) in enumerate(generator):
-    print(i, gs, ps)
-    audio_segments.append(audio)
+    result: Joke = chain.invoke({"topic": "Dreams"})
+    # Access fields
+    print(result.category)
+    print(result.joke)
 
-# Concatenate all audio into one
-full_audio = np.concatenate(audio_segments)
 
-# Write to a single file
-sf.write('output.wav', full_audio, 24000)
+if __name__ == "__main__":
+    main()
+
+# ----- Create audio with the generated LLM output and save it as a .wav file -----
+
+# from groq import Groq
+# from pathlib import Path
+# from kokoro import KPipeline
+# import soundfile as sf
+# from huggingface_hub import login
+# import numpy as np
+
+# if not os.getenv("HUGGINGFACE_HUB_TOKEN"):
+#     token = input("Enter API key for Hugging Face Hub: ")
+#     login(token)
+# else:
+#     login(os.getenv("HUGGINGFACE_HUB_TOKEN"))
+
+# client = Groq()
+# # response = client.audio.speech.create(
+# #     model="playai-tts",
+# #     voice="Aaliyah-PlayAI",
+# #     response_format="wav",
+# #     input=output,
+# # )
+# # response.write_to_file(speech_file_path)
+
+# # KOKORO TTS
+
+# # Collect all audio chunks
+# audio_segments = []
+
+# pipeline = KPipeline(lang_code='a')
+# generator = pipeline(output, voice='am_adam')
+# for i, (gs, ps, audio) in enumerate(generator):
+#     print(i, gs, ps)
+#     audio_segments.append(audio)
+
+# # Concatenate all audio into one
+# full_audio = np.concatenate(audio_segments)
+
+# # Write to a single file
+# sf.write('output.wav', full_audio, 24000)
