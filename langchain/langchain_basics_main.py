@@ -44,8 +44,56 @@ def main():
     print(result.joke)
 
 
-if __name__ == "__main__":
-    main()
+# Streaming tokens
+
+from langchain_cerebras import ChatCerebras
+from langchain_core.messages import HumanMessage
+
+llm = ChatCerebras(model="llama-3.3-70b")
+
+for chunk in llm.stream([HumanMessage(content="Write a haiku about oceans.")]):
+    print(chunk.content, end="", flush=True)
+print()
+
+# Prompt templates and chaining
+
+from langchain_cerebras import ChatCerebras
+from langchain_core.prompts import ChatPromptTemplate
+
+llm = ChatCerebras(model="llama-3.3-70b", temperature=0)
+
+prompt = ChatPromptTemplate.from_messages(
+    [("system", "You are a succinct assistant."), ("human", "{question}")]
+)
+
+chain = prompt | llm
+result = chain.invoke({"question": "Summarize LangChain in one sentence."})
+print(result.content)
+
+# Basic usage with ChatCerebras
+# pip install -U langchain-cerebras
+
+from langchain_cerebras import ChatCerebras
+from langchain_core.messages import HumanMessage, SystemMessage
+
+llm = ChatCerebras(
+    model="llama-3.3-70b",  # pick any available Cerebras model
+    temperature=0.2,
+    max_tokens=512,
+    # timeout=60,
+    # max_retries=2,
+    # api_key="...optional, uses CEREBRAS_API_KEY by default"
+)
+
+messages = [
+    SystemMessage(
+        content="You are a helpful assistant that translates English to French."
+    ),
+    HumanMessage(content="I love programming."),
+]
+
+ai_msg = llm.invoke(messages)
+print(ai_msg.content)
 
 # ----- Create audio with the generated LLM output and save it as a .wav file -----
 
